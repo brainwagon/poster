@@ -20,6 +20,7 @@ from PIL import Image
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
+import argparse
 
 def drawRectangle(c, minx, miny, maxx, maxy):
     c.line(minx, miny, maxx, miny)
@@ -27,7 +28,8 @@ def drawRectangle(c, minx, miny, maxx, maxy):
     c.line(minx, miny, minx, maxy)
     c.line(maxx, miny, maxx, maxy)
 
-def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poster_height=30, dpi=300, overlap_in=0.5):
+def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poster_height=30, dpi=300, overlap_in=0.5,
+        args=None):
 
     # Hopelessly U.S. centric, no A sizes here...
     margin = 0.25
@@ -39,8 +41,15 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     sheet_px_w = int(letter_w * dpi)            # sheet_px_w is in pixels...
     sheet_px_h = int(letter_h * dpi)            # sheet_px_h is in pixels...
 
+    print(f"... black and white is {args.black_and_white}")
     im = Image.open(image_path)
-    im = im.convert('RGB')
+    if args and args.black_and_white:
+        im = im.convert('L')
+        im = im.point(lambda p : 0 if p < 128 else 255)
+        im = im.convert('1')
+        print("... converted to black and white")
+    else:
+        im = im.convert('RGB')
     iw, ih = im.size
 
     # If the input matches the target ratio, scale it up or down to match poster size
@@ -141,11 +150,12 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     print(f"Sliced into {rows} rows and {cols} columns with {overlap_in}\" overlap.")
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print("Usage: python poster_split_no_distortion.py input_image output_pdf [dpi] [overlap_in]")
-        sys.exit(1)
-    image_path = sys.argv[1]
-    output_pdf = sys.argv[2]
-    dpi = int(sys.argv[3]) if len(sys.argv) > 3 else 300
-    overlap_in = float(sys.argv[4]) if len(sys.argv) > 4 else 0.5
-    split_image_to_letter_overlap(image_path, output_pdf, dpi=dpi, overlap_in=overlap_in)
+    p = argparse.ArgumentParser()
+    p.add_argument("-b", "--black-and-white", action="store_true", help="convert the image to black and white")
+    p.add_argument("image", help="input image file name")
+    p.add_argument("output", help="output PDF file name")
+    p.add_argument("dpi", default=300, help="dots per inch", type=int)
+    p.add_argument("overlap", default=0.5, help="overlap (in inches)", type=float)
+    args = p.parse_args()
+
+    split_image_to_letter_overlap(args.image, args.output, dpi=args.dpi, overlap_in=args.overlap, args=args)
