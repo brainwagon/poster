@@ -115,18 +115,25 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
             lower = min(upper + sheet_px_h, poster_px_h)
             box = (left, upper, right, lower)
             segment = im.crop(box)
-            
+
             # crop the image... I believe that his can return 
             # an image which is smaller than that specified by "box"
 
             w, h = segment.size
             print(f"Page {row * cols + col + 1:2d}: Image segment {col+1}x{row+1} has size {w}x{h}")
 
+            print(f"height = {h}")
+            # sheet_px_h = sheet_height in pixels
+            # h is the height in pixels 
+            offset = (float(sheet_px_h - h) / sheet_px_h) * letter_h
+            print(f"offset = {offset} inches")
+            print(f"letter_h = {letter_h}")
+
             # Draw segment on PDF page using drawInlineImage
             c.drawInlineImage(
                 segment,
                 margin*72, 
-                (margin+overlap_in)*72 if row == rows-1 else margin*72,
+                (margin+offset)*72 if row == rows-1 else margin * 72,
                 width=(letter_w * 72) * float(w) / sheet_px_w,  
                 height=(letter_h * 72) * float(h) / sheet_px_h
             )
