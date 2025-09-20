@@ -423,17 +423,17 @@ def main():
     )
     
     parser.add_argument(
-        "-w", "--width",
+        "-W", "--width",
         type=int,
-        default=800,
-        help="Image width in pixels (default: 800)"
+        default=1024,
+        help="Image width in pixels (default: 1024)"
     )
     
     parser.add_argument(
-        "--height",
+        "-H", "--height",
         type=int,
-        default=600,
-        help="Image height in pixels (default: 600)"
+        default=1536,
+        help="Image height in pixels (default: 1536)"
     )
     
     parser.add_argument(
