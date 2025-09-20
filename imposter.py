@@ -61,7 +61,7 @@ def calculate_pages_needed(poster_width, poster_height, dpi=300, overlap_in=0.5,
     return cols, rows
 
 def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poster_height=30, dpi=300, overlap_in=0.5,
-        args=None):
+        args=None, rotated=False):
 
     # Hopelessly U.S. centric, no A sizes here...
     margin = 0.25
@@ -79,6 +79,9 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     print(f"Black and white: {args.black_and_white if args else False}")
     
     im = Image.open(image_path)
+    if rotated:
+        im = im.rotate(90, expand=True)
+
     if args and args.black_and_white:
         im = im.convert('L')
         im = im.point(lambda p : 0 if p < 128 else 255)
@@ -203,6 +206,8 @@ def main():
                    help="Overlap between pages in inches (default: 0.5)")
     p.add_argument("--preview", action="store_true",
                    help="Show how many pages will be needed without processing")
+    p.add_argument("--no-rotate", action="store_true",
+                     help="Disable automatic rotation of the image for fewer pages")
     p.add_argument("image", help="Input image file name")
     p.add_argument("output", help="Output PDF file name")
     
@@ -214,6 +219,16 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     
+    rotated = False
+    if not args.no_rotate:
+        cols, rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap)
+        rotated_cols, rotated_rows = calculate_pages_needed(poster_height, poster_width, args.dpi, args.overlap)
+
+        if rotated_cols * rotated_rows < cols * rows:
+            print("Rotating image to save pages")
+            poster_width, poster_height = poster_height, poster_width
+            rotated = True
+
     # Preview mode - just show page count
     if args.preview:
         cols, rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap)
@@ -229,7 +244,8 @@ def main():
         poster_height=poster_height,
         dpi=args.dpi, 
         overlap_in=args.overlap, 
-        args=args
+        args=args,
+        rotated=rotated
     )
 
 if __name__ == '__main__':
