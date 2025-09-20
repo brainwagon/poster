@@ -20,6 +20,7 @@ from PIL import Image
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
+from reportlab.lib import colors
 import argparse
 import math
 
@@ -60,8 +61,27 @@ def calculate_pages_needed(poster_width, poster_height, dpi=300, overlap_in=0.5,
     
     return cols, rows
 
+def parse_color(color_str):
+    """Parse color string (e.g., 'red', '#RRGGBB') into a reportlab Color object."""
+    if color_str.startswith('#'):
+        # Hex color
+        hex_color = color_str[1:]
+        if len(hex_color) == 6:
+            r = int(hex_color[0:2], 16) / 255.0
+            g = int(hex_color[2:4], 16) / 255.0
+            b = int(hex_color[4:6], 16) / 255.0
+            return Color(r, g, b)
+        else:
+            raise ValueError(f"Invalid hex color format: {color_str}. Use #RRGGBB.")
+    else:
+        # Named color
+        if hasattr(colors, color_str.lower()):
+            return getattr(colors, color_str.lower())
+        else:
+            raise ValueError(f"Unknown color name: {color_str}")
+
 def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poster_height=30, dpi=300, overlap_in=0.5,
-        args=None, rotated=False):
+        args=None, rotated=False, line_color_str="black"):
 
     # Hopelessly U.S. centric, no A sizes here...
     margin = 0.25
@@ -77,6 +97,13 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     print(f"DPI: {dpi}")
     print(f"Overlap: {overlap_in}\"")
     print(f"Black and white: {args.black_and_white if args else False}")
+    print(f"Line color: {line_color_str}")
+
+    try:
+        line_color = parse_color(line_color_str)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     
     im = Image.open(image_path)
     if rotated:
@@ -142,47 +169,55 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
             )
 
             # Draw prominent alignment lines
-            c.setStrokeColor(Color(0, 0, 0, alpha=1.0))
+            c.setStrokeColor(line_color)
             c.setLineWidth(1)
             c.setDash(1, 8)
 
             m = margin * 72
 
+            minx = m
+            maxx = m + (letter_w * float(w) / sheet_px_w) * 72
+
+            miny = m
+            maxy = m + (letter_h * float(h) / sheet_px_h) * 72
+            if row == rows - 1:
+                miny = m + offset * 72
+                maxy = m + offset * 72 + (letter_h * float(h) / sheet_px_h) * 72
+
             if col > 0:
                 x = overlap_in * 72
-                c.line(x+m, 0+m, x+m, letter_h * 72+m)
+                c.line(x+m, miny, x+m, maxy)
             if col < cols - 1:
                 x = (letter_w - overlap_in) * 72
-                c.line(x+m, 0+m, x+m, letter_h * 72+m)
+                c.line(x+m, miny, x+m, maxy)
 
             if row > 0:
                 y = (letter_h - overlap_in) * 72
-                c.line(0+m, y+m, letter_w * 72+m, y+m)
+                c.line(minx, y+m, maxx, y+m)
             if row < rows - 1:
                 y = overlap_in * 72
-                c.line(0+m, y+m, letter_w * 72+m, y+m)
+                c.line(minx, y+m, maxx, y+m)
 
-            # set a dashed box around the printable area...
+            # set a dashed box around the image area...
             c.setDash(6, 3)
-            drawRectangle(c, m, m, m+letter_w*72, m+letter_h*72)
+            
+            maxx = m + letter_w * 72
+            if col == cols - 1:
+                maxx = m + (letter_w * float(w) / sheet_px_w) * 72
+
+            miny = m
+            maxy = m + letter_h * 72
+            if row == rows - 1:
+                # for the last row, the image is aligned to the top of the
+                # page.  The offset calculation determines the amount of blank
+                # space at the bottom of the page.
+                miny = m + offset * 72
+            
+            drawRectangle(c, m, miny, maxx, maxy)
 
             c.drawString(10, 10, f"Page {row * cols + col + 1} (row {row+1}, col {col+1})")
 
-            # add the final cut marks for size... 
-            c.setLineWidth(0.5)
-            c.setDash(8,8)
 
-            if col == cols-1:
-                c.line(m+(letter_w * float(w) / sheet_px_w)*72, m,
-                       m+(letter_w * float(w) / sheet_px_w)*72, m+letter_h * 72)
-
-            if row == rows-1:
-                x0 = m 
-                x1 = m + letter_w * 72
-                y0 = m + (1.0 - float(h) / sheet_px_h) * letter_h * 72
-                y1 = y0
-
-                c.line(x0, y0, x1, y1)
 
             c.showPage()
 
@@ -202,8 +237,10 @@ def main():
                    help="Convert the image to black and white")
     p.add_argument("--dpi", default=300, type=int,
                    help="Dots per inch resolution (default: 300)")
-    p.add_argument("--overlap", default=0.5, type=float,
-                   help="Overlap between pages in inches (default: 0.5)")
+    p.add_argument("--overlap", default=0.125, type=float,
+                   help="Overlap between pages in inches (default: 0.125)")
+    p.add_argument("--line-color", default="black", type=str,
+                     help="Color of the overlap lines (default: black)")
     p.add_argument("--preview", action="store_true",
                    help="Show how many pages will be needed without processing")
     p.add_argument("--no-rotate", action="store_true",
@@ -245,7 +282,8 @@ def main():
         dpi=args.dpi, 
         overlap_in=args.overlap, 
         args=args,
-        rotated=rotated
+        rotated=rotated,
+        line_color_str=args.line_color
     )
 
 if __name__ == '__main__':
