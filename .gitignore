@@ -207,3 +207,10 @@ marimo/_lsp/
 __marimo__/
 
 postergen.py
+
+# Ignore asset files
+*.ttf
+*.pdf
+*.png
+*.jpg
+*.txt
