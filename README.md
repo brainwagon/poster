@@ -1,6 +1,6 @@
-# imposter.py - Poster Generator
+# poster.py - Poster Generator
 
-`imposter.py` is a Python script that allows you to split large images into multiple letter-sized PDF pages, which can then be printed and assembled to create a large poster. It provides various options for customization, including poster size, print resolution, page overlap, and line colors.
+`poster.py` is a Python script that allows you to split large images into multiple letter-sized PDF pages, which can then be printed and assembled to create a large poster. It provides various options for customization, including poster size, print resolution, page overlap, and line colors.
 
 ## Features
 
@@ -16,7 +16,7 @@
 ## Usage
 
 ```bash
-python3 imposter.py [OPTIONS] <INPUT_IMAGE> <OUTPUT_PDF>
+python3 poster.py [OPTIONS] <INPUT_IMAGE> <OUTPUT_PDF>
 ```
 
 ### Arguments
@@ -53,7 +53,7 @@ python3 imposter.py [OPTIONS] <INPUT_IMAGE> <OUTPUT_PDF>
 
 ## Installation
 
-1.  **Clone the repository (if applicable) or download `imposter.py`:**
+1.  **Clone the repository (if applicable) or download `poster.py`:**
     ```bash
     git clone <repository_url>
     cd <repository_directory>
@@ -70,5 +70,5 @@ python3 imposter.py [OPTIONS] <INPUT_IMAGE> <OUTPUT_PDF>
 To create a 24x36 inch poster from `my_image.jpg` with a DPI of 300, 0.5 inches of overlap, and red alignment lines, save it as `my_poster.pdf`:
 
 ```bash
-python3 imposter.py -s 24x36 --dpi 300 --overlap 0.5 --line-color red my_image.jpg my_poster.pdf
+python3 poster.py -s 24x36 --dpi 300 --overlap 0.5 --line-color red my_image.jpg my_poster.pdf
 ```
