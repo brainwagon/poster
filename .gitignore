@@ -214,3 +214,5 @@ postergen.py
 *.png
 *.jpg
 *.txt
+*.swp
+*:Zone.Identifier

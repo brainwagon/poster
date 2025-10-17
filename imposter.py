@@ -253,9 +253,9 @@ def main():
                    help="Convert the image to black and white")
     p.add_argument("--dpi", default=300, type=int,
                    help="Dots per inch resolution (default: 300)")
-    p.add_argument("--overlap", default=0.125, type=float,
+    p.add_argument("--overlap", default=0.25, type=float,
                    help="Overlap between pages in inches (default: 0.125)")
-    p.add_argument("--margin", default="0.375", type=str,
+    p.add_argument("--margin", default="0.5", type=str,
                    help="Margin for all pages in inches (default: 0.375). Can be a single value or in 'x,y' format.")
     p.add_argument("--line-color", default="black", type=str,
                      help="Color of the overlap lines (default: black)")
