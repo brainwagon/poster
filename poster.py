@@ -3,7 +3,7 @@
 ##   _                    _           
 ##  (_)_ __  _ __  ___ __| |_ ___ _ _ 
 ##  | | '  \| '_ \/ _ (_-<  _/ -_) '_|
-##  |_|_|_|_| .__/\___/__/\__\___|_|  
+##  |_|_|_|_| .__/\[___/__/\__\___|_|  
 ##          |_|                       
 ##       
 ## my own simplified version of the "poster" program that you can get on linux.  I've had a 
@@ -17,7 +17,7 @@
 
 import sys
 from PIL import Image
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 from reportlab.lib import colors
@@ -58,12 +58,15 @@ def parse_margin(margin_str):
     except (ValueError, IndexError) as e:
         raise ValueError(f"Invalid margin format '{margin_str}'. Use format like '0.5,0.25' or '0.5'") from e
 
-def calculate_pages_needed(poster_width, poster_height, dpi=300, overlap_in=0.5, margin_x=0.25, margin_y=0.25):
+def calculate_pages_needed(poster_width, poster_height, dpi=300, overlap_in=0.5, margin_x=0.25, margin_y=0.25, paper_w=8.5, paper_h=11.0):
     """Calculate how many letter-sized pages are needed for the given poster size"""
-    # Printable area on letter paper (8.5" x 11" minus margins)
-    letter_w = 8.5 - 2.0 * margin_x
-    letter_h = 11.0 - 2.0 * margin_y
+    # Printable area on paper (minus margins)
+    letter_w = paper_w - 2.0 * margin_x
+    letter_h = paper_h - 2.0 * margin_y
     
+    if letter_w <= 0 or letter_h <= 0:
+        return float('inf'), float('inf')
+
     # Convert to pixels
     overlap_px = int(overlap_in * dpi)
     poster_px_w = int(poster_width * dpi)
@@ -72,8 +75,11 @@ def calculate_pages_needed(poster_width, poster_height, dpi=300, overlap_in=0.5,
     sheet_px_h = int(letter_h * dpi)
     
     # Calculate number of columns and rows needed
-    cols = math.ceil((poster_px_w - overlap_px) / (sheet_px_w - overlap_px))
-    rows = math.ceil((poster_px_h - overlap_px) / (sheet_px_h - overlap_px))
+    if sheet_px_w <= overlap_px or sheet_px_h <= overlap_px:
+        return float('inf'), float('inf') # Avoid division by zero or negative
+
+    cols = math.ceil((poster_px_w - overlap_px) / (sheet_px_w - overlap_px)) if sheet_px_w > overlap_px else 1
+    rows = math.ceil((poster_px_h - overlap_px) / (sheet_px_h - overlap_px)) if sheet_px_h > overlap_px else 1
     
     return cols, rows
 
@@ -97,10 +103,11 @@ def parse_color(color_str):
             raise ValueError(f"Unknown color name: {color_str}")
 
 def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poster_height=30, dpi=300, overlap_in=0.5,
-        args=None, rotated=False, line_color_str="black", margin_x=0.375, margin_y=0.375):
+        args=None, rotated=False, line_color_str="black", margin_x=0.375, margin_y=0.375, paper_size=(8.5, 11.0)):
 
     # Hopelessly U.S. centric, no A sizes here...
-    letter_w, letter_h = 8.5-2.0*margin_x, 11.-2.0*margin_y
+    paper_w, paper_h = paper_size
+    letter_w, letter_h = paper_w-2.0*margin_x, paper_h-2.0*margin_y
 
     overlap_px = int(overlap_in * dpi)
     poster_px_w = int(poster_width * dpi)
@@ -113,6 +120,8 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     print(f"Overlap: {overlap_in}\"")
     print(f"Black and white: {args.black_and_white if args else False}")
     print(f"Line color: {line_color_str}")
+    print(f"Paper size: {paper_w} x {paper_h}")
+
 
     try:
         line_color = parse_color(line_color_str)
@@ -146,11 +155,12 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
     print("done.")
 
     # Calculate pages needed
-    cols, rows = calculate_pages_needed(poster_width, poster_height, dpi, overlap_in, margin_x, margin_y)
+    cols, rows = calculate_pages_needed(poster_width, poster_height, dpi, overlap_in, margin_x, margin_y, paper_w, paper_h)
     
     print(f"Will need {cols} columns x {rows} rows = {cols * rows} total pages")
 
-    c = canvas.Canvas(output_pdf, pagesize=letter)
+    page_layout = landscape(letter) if paper_w > paper_h else letter
+    c = canvas.Canvas(output_pdf, pagesize=page_layout)
 
     for row in range(rows):
         for col in range(cols):
@@ -245,7 +255,7 @@ def split_image_to_letter_overlap(image_path, output_pdf, poster_width=20, poste
 def main():
     p = argparse.ArgumentParser(
         description="Split an image into multiple letter-sized pages for poster printing",
-        epilog="Example: python imposter.py -s 24x36 --dpi 300 --overlap 0.5 image.jpg poster.pdf"
+        epilog="Example: python poster.py -s 24x36 --dpi 300 --overlap 0.5 image.jpg poster.pdf"
     )
     p.add_argument("-s", "--size", default="20x30", 
                    help="Poster size in inches as WIDTHxHEIGHT (default: 20x30)")
@@ -254,9 +264,9 @@ def main():
     p.add_argument("--dpi", default=300, type=int,
                    help="Dots per inch resolution (default: 300)")
     p.add_argument("--overlap", default=0.25, type=float,
-                   help="Overlap between pages in inches (default: 0.125)")
-    p.add_argument("--margin", default="0.5", type=str,
-                   help="Margin for all pages in inches (default: 0.375). Can be a single value or in 'x,y' format.")
+                   help="Overlap between pages in inches (default: 0.25)")
+    p.add_argument("--margin", default="0.25,0.5", type=str,
+                   help="Margin for all pages in inches (default: 0.25,0.5). Can be a single value or in 'x,y' format.")
     p.add_argument("--line-color", default="black", type=str,
                      help="Color of the overlap lines (default: black)")
     p.add_argument("--preview", action="store_true",
@@ -274,20 +284,47 @@ def main():
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-    
-    rotated = False
-    if not args.no_rotate:
-        cols, rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap, margin_x, margin_y)
-        rotated_cols, rotated_rows = calculate_pages_needed(poster_height, poster_width, args.dpi, args.overlap, margin_y, margin_x)
 
-        if rotated_cols * rotated_rows < cols * rows:
-            print("Rotating image to save pages")
+    if args.no_rotate:
+        rotated = False
+        paper_size = (8.5, 11.0)
+    else:
+        # Paper dimensions
+        letter_portrait = (8.5, 11.0)
+        letter_landscape = (11.0, 8.5)
+
+        # Calculate page counts for all 4 combinations
+        # 1. Portrait image, portrait paper
+        pp_cols, pp_rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap, margin_x, margin_y, paper_w=letter_portrait[0], paper_h=letter_portrait[1])
+        # 2. Portrait image, landscape paper
+        pl_cols, pl_rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap, margin_x, margin_y, paper_w=letter_landscape[0], paper_h=letter_landscape[1])
+        # 3. Landscape image, portrait paper
+        lp_cols, lp_rows = calculate_pages_needed(poster_height, poster_width, args.dpi, args.overlap, margin_x, margin_y, paper_w=letter_portrait[0], paper_h=letter_portrait[1])
+        # 4. Landscape image, landscape paper
+        ll_cols, ll_rows = calculate_pages_needed(poster_height, poster_width, args.dpi, args.overlap, margin_x, margin_y, paper_w=letter_landscape[0], paper_h=letter_landscape[1])
+
+        page_counts = [
+            (pp_cols * pp_rows, "portrait_portrait"),
+            (pl_cols * pl_rows, "portrait_landscape"),
+            (lp_cols * lp_rows, "landscape_portrait"),
+            (ll_cols * ll_rows, "landscape_landscape"),
+        ]
+
+        # Find the best orientation
+        best_pages, best_orientation = min(page_counts)
+
+        print(f"Page counts: PP:{page_counts[0][0]}, PL:{page_counts[1][0]}, LP:{page_counts[2][0]}, LL:{page_counts[3][0]}")
+        print(f"Best orientation: {best_orientation} with {best_pages} pages")
+
+        rotated = best_orientation.startswith("landscape")
+        paper_size = letter_landscape if best_orientation.endswith("landscape") else letter_portrait
+
+        if rotated:
             poster_width, poster_height = poster_height, poster_width
-            rotated = True
 
     # Preview mode - just show page count
     if args.preview:
-        cols, rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap, margin_x, margin_y)
+        cols, rows = calculate_pages_needed(poster_width, poster_height, args.dpi, args.overlap, margin_x, margin_y, paper_size[0], paper_size[1])
         print(f"Poster size: {poster_width}\" x {poster_height}\"")
         print(f"Pages needed: {cols} columns x {rows} rows = {cols * rows} total pages")
         print(f"With {args.dpi} DPI and {args.overlap}\" overlap")
@@ -304,7 +341,8 @@ def main():
         rotated=rotated,
         line_color_str=args.line_color,
         margin_x=margin_x,
-        margin_y=margin_y
+        margin_y=margin_y,
+        paper_size=paper_size
     )
 
 if __name__ == '__main__':
